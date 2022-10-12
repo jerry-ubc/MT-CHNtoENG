@@ -1,17 +1,20 @@
 from json import encoder
+from unicodedata import bidirectional
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torchtext.datasets import Multi30k                         #Ger -> Eng dataset
+from torchtext.datasets import Multi30k                         #German -> English dataset
 from torchtext.data import Field, BucketIterator
 import numpy as np                                              #loss plots
 import spacy                                                    #tokenizer
 import random
 from torch.utils.tensorboard import SummaryWriter  #prints to tensorboard
-from utils import translate_sentence, bleu, save_checkpoint, load_checkpoint
+from utils import save_checkpoint, load_checkpoint
+#from utils import translate_sentence, bleu, save_checkpoint, load_checkpoint
 
-spacy_ge = spacy.load('de')
-spacy_en = spacy.load('en')
+#spacy_zh = spacy.load('zh_core_web_md')
+spacy_ge = spacy.load('de_core_news_md')
+spacy_en = spacy.load('en_core_web_md')
 
 def tokenizer_ge(text):
     return [tok.text for tok in spacy_ge.tokenizer(text)]
@@ -40,16 +43,31 @@ class Encoder(nn.Module):
 
         self.dropout = nn.Dropout(p)
         self.embedding = nn.Embedding(input_size, embed_size)               #(input) input_size -> embed_size (output)
-        self.rnn = nn.LSTM(embed_size, hidden_size, num_layers, dropout=p)  #(input) embed_size -> input_size (output)
+        #WITH attention version
+        self.rnn = nn.LSTM(embed_size, hidden_size, num_layers, bidirectional=True, dropout=p)
+
+        #with attention, fully connected layers are 2*hidden_size due to bidirectionality
+        self.fc_hidden = nn.Linear(hidden_size*2, hidden_size)
+        self.fc_cell = nn.Linear(hidden_size*2, hidden_size)
+
+        #WITHOUT attention version
+        #self.rnn = nn.LSTM(embed_size, hidden_size, num_layers, dropout=p)  #(input) embed_size -> input_size (output)
 
     def forward(self, x):
         #x: vector of indices to represent tokenized words/word components
         #   unpacking the information, you get a batch_size of sentences
         #x: (seq_length, batch_size)
 
-        embedding = self.droppout(self.embedding(x))    #embedding: (seq_len, N, embed_size)
-        outputs, (hidden, cell) = self.rnn(embedding)
-        return hidden, cell
+        embedding = self.dropout(self.embedding(x))     #embedding: (seq_len, N, embed_size)
+        encoder_states, (hidden, cell) = self.rnn(embedding)   #outputs: (seq_len, N, hidden_size)
+        hidden = self.fc_hidden(torch.cat((hidden[0:1], hidden[1:2]), dim=2))  #hidden[0:1] represents forward direction, [1:2] represents backwards
+        #hidden: (2, batch_size, hidden_size) -> (batch_size, hidden_size * 2)
+        cell = self.fc_cell(torch.cat((cell[0:1], cell[1:2]), dim=2))
+
+        #encoder_states contains information about hidden states for each timestep
+        #whereas hidden contains information about rightmost hidden state
+        #each timestep is necessary to calculate attention across entire sentence
+        return encoder_states, hidden, cell
 
 class Decoder(nn.Module):
     def __init__(self, input_size, embed_size, hidden_size, output_size, num_layers, p):
@@ -62,18 +80,38 @@ class Decoder(nn.Module):
 
         self.dropout = nn.Dropout(p)
         self.embedding = nn.Embedding(input_size, embed_size)
-        self.rnn = nn.LSTM(embed_size, hidden_size, num_layers, dropout=p)
+        #WITH attention version
+        self.rnn = nn.LSTM(2*hidden_size + embed_size, hidden_size, num_layers, dropout=p)
+        self.energy = nn.Linear(hidden_size*3, 1)   
+        #hidden_size*3 because add hidden states from encoder + hidden from previous step in decoder
+        self.softmax = nn.Softmax(dim=0)
+        self.relu = nn.ReLU()
+
+        #WITHOUT attention version
+        #self.rnn = nn.LSTM(embed_size, hidden_size, num_layers, dropout=p)
         #hidden size of encoder and decoder are the same
         self.fc = nn.Linear(hidden_size, output_size)
         #fc means fully connected
 
-    def forward(self, x, hidden, cell):
+    def forward(self, x, encoder_states, hidden, cell):
         #x: (batch_size), but we want (1, N) because decoder predicts 1 word at a time
         #given previous hidden and cell state, predict next work
         #recall encoder is (seq_len, N) since we send in entire German sentence as input
         x = x.unsqueeze(0)
 
         embedding = self.dropout(self.embedding(x))                     #embedding: (1, N, embed_size)
+        sequence_length = encoder_states.shape[0]
+        h_reshaped = hidden.repeat(sequence_length, 1, 1)
+        energy = self.relu(self.energy(torch.cat((h_reshaped, encoder_states), dim=2)))
+        #energy: (hidden_size*3, 1) achieved by encoder_states with (hidden_size*2) and h_reshaped with (hidden_size*1)
+        attention = self.softmax(energy)                    #attention: (seq_length, N, 1)
+        attention = attention.permute(1, 0, 2)              #(seq_len, N, 1) -> (N, seq_length, 1) DOUBLE CHECK THESE DIMENSIONS ARE THEY RIGHT?????????
+        encoder_states = encoder_states.permute(1, 0, 2)    #(seq_len, N, hidden_size*2) -> (N, seq_len, hidden_size*2)
+        context_vector = torch.bmm(attention, encoder_states)
+        context_vector = context_vector.permute(1, 0, 2)
+
+
+
         outputs, (hidden, cell) = self.rnn(embedding, (hidden, cell))   #outputs: (1, N, hidden_size)
         predictions = self.fc(outputs)                                  #predictions: (1, N, vocab_length)
         predictions = predictions.squeeze(0)                            #want (N, vocab_length) because ??????????????????????
@@ -108,6 +146,7 @@ class Seq2Seq(nn.Module):
             #output: (N, english_vocab_size), argmax gives highest probability guess
             best_guess = output.argmax(1)
             x = target[word] if random.random() < teacher_force_ratio else best_guess
+        return outputs
 
 
 #training hyperparameters
@@ -141,7 +180,7 @@ train_iterator, dev_iterator, test_iterator = BucketIterator.splits((train_data,
                                                                      #to save computations via sort_key parameter
 
 encoder_net = Encoder(input_size_encoder, encoder_embed_size, hidden_size, num_layers, enc_dropout).to(device)
-decoder_net = Encoder(input_size_decoder, decoder_embed_size, hidden_size, output_size, num_layers, dec_dropout).to(device)
+decoder_net = Decoder(input_size_decoder, decoder_embed_size, hidden_size, output_size, num_layers, dec_dropout).to(device)
 
 model = Seq2Seq(encoder_net, decoder_net).to(device)
 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
@@ -159,22 +198,22 @@ for epoch in range(num_epochs):
 
     checkpoint = {'state_dict':model.state_dict(), 'optimizer':optimizer.state_dict()}
     save_checkpoint(checkpoint)
-    model.eval()
 
-    translated_sent = translate_sentence(model, sentence, german, english, device, max_length=50)
-
-    print(f'Translated: \n {translated_sent}')
-
-    model.train()
+    #model.eval()
+    #translated_sent = translate_sentence(model, sentence, german, english, device, max_length=50)
+    #print(f'Translated: \n {translated_sent}')
+    #model.train()
 
     for batch_idx, batch in enumerate(train_iterator):
         in_data = batch.src.to(device)
-        target = batch.tgt.to(device)       #OR batch.trg.to(device)????????????????????????
+        target = batch.trg.to(device)
 
         output = model(in_data, target) #output: (target_len, batch_size, output_dim)
                                         #currently output represents a target_len of words
-
-        output = output[1:].output.reshape(-1, output.shape[2])
+        
+        #print(type)
+        #print(type(output))
+        output = output[1:].reshape(-1, output.shape[2])
         #output[1:] removes output[0] as it's the start token
         #reshape turns output from 3D -> 2D, -1 means it's value is inferred
 
@@ -190,5 +229,6 @@ for epoch in range(num_epochs):
         writer.add_scalar('Training loss', loss, global_step=step)
         step += 1
 
-score = bleu(test_data, model, german, english, device)
-print(f'Bleu score {score*100:.2f}')
+#score = bleu(test_data, model, german, english, device)
+#print(f'Bleu score {score*100:.2f}')
+print("DONE!!!!!!!!!!!!!!")
