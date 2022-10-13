@@ -114,7 +114,7 @@ class Decoder(nn.Module):
 
 
 
-        outputs, (hidden, cell) = self.rnn(rnn_input (hidden, cell))    #outputs: (1, N, hidden_size)
+        outputs, (hidden, cell) = self.rnn(rnn_input, (hidden, cell))    #outputs: (1, N, hidden_size)
         predictions = self.fc(outputs)                                  #predictions: (1, N, vocab_length)
         predictions = predictions.squeeze(0)                            #want (N, vocab_length), so unsqueeze
         return predictions, hidden, cell
@@ -194,6 +194,12 @@ if load_model:
     load_checkpoint(torch.load('my_checkpoint.pth.ptar'), model, optimizer)
 
 sentence = ''
+
+
+
+print("FINISHED LOADING")
+import sys
+sys.exit()
 
 for epoch in range(num_epochs):
     print(f'Epoch [{epoch} / {num_epochs}]')
