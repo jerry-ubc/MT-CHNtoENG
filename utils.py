@@ -1,12 +1,23 @@
+#file taken from https://github.com/aladdinpersson/Machine-Learning-Collection
+
 import torch
 import spacy
 from torchtext.data.metrics import bleu_score
 import sys
 
+def save_checkpoint(state, filename="my_checkpoint.pth.tar"):
+    print("=> Saving checkpoint")
+    torch.save(state, filename)
+
+
+def load_checkpoint(checkpoint, model, optimizer):
+    print("=> Loading checkpoint")
+    model.load_state_dict(checkpoint["state_dict"])
+    optimizer.load_state_dict(checkpoint["optimizer"])
 
 def translate_sentence(model, sentence, german, english, device, max_length=50):
     # Load german tokenizer
-    spacy_ger = spacy.load("de")
+    spacy_ger = spacy.load("de_core_news_sm")
 
     # Create tokens using spacy and everything in lower case (which is what our vocab is)
     if type(sentence) == str:
@@ -66,14 +77,3 @@ def bleu(data, model, german, english, device):
         outputs.append(prediction)
 
     return bleu_score(outputs, targets)
-
-
-def save_checkpoint(state, filename="my_checkpoint.pth.tar"):
-    print("=> Saving checkpoint")
-    torch.save(state, filename)
-
-
-def load_checkpoint(checkpoint, model, optimizer):
-    print("=> Loading checkpoint")
-    model.load_state_dict(checkpoint["state_dict"])
-    optimizer.load_state_dict(checkpoint["optimizer"])
