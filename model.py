@@ -44,7 +44,7 @@ class Encoder(nn.Module):
         self.dropout = nn.Dropout(p)
         self.embedding = nn.Embedding(input_size, embed_size)               #(input) input_size -> embed_size (output)
         #WITH attention version
-        self.rnn = nn.LSTM(embed_size, hidden_size, num_layers, bidirectional=True, dropout=p)
+        self.rnn = nn.LSTM(embed_size, hidden_size, num_layers, bidirectional=True)
 
         #with attention, fully connected layers are 2*hidden_size due to bidirectionality
         self.fc_hidden = nn.Linear(hidden_size*2, hidden_size)
@@ -81,7 +81,7 @@ class Decoder(nn.Module):
         self.dropout = nn.Dropout(p)
         self.embedding = nn.Embedding(input_size, embed_size)
         #WITH attention version
-        self.rnn = nn.LSTM(2*hidden_size + embed_size, hidden_size, num_layers, dropout=p)
+        self.rnn = nn.LSTM(hidden_size*2 + embed_size, hidden_size, num_layers)
         self.energy = nn.Linear(hidden_size*3, 1)   
         #hidden_size*3 because add hidden states from encoder + hidden from previous step in decoder
         self.softmax = nn.Softmax(dim=0)
@@ -104,17 +104,19 @@ class Decoder(nn.Module):
         h_reshaped = hidden.repeat(sequence_length, 1, 1)
         energy = self.relu(self.energy(torch.cat((h_reshaped, encoder_states), dim=2)))
         #energy: (hidden_size*3, 1) achieved by encoder_states with (hidden_size*2) and h_reshaped with (hidden_size*1)
-        attention = self.softmax(energy)                    #attention: (seq_length, N, 1)
-        attention = attention.permute(1, 0, 2)              #(seq_len, N, 1) -> (N, seq_length, 1) DOUBLE CHECK THESE DIMENSIONS ARE THEY RIGHT?????????
-        encoder_states = encoder_states.permute(1, 0, 2)    #(seq_len, N, hidden_size*2) -> (N, seq_len, hidden_size*2)
-        context_vector = torch.bmm(attention, encoder_states)
-        context_vector = context_vector.permute(1, 0, 2)
+        attention = self.softmax(energy)                            #attention: (seq_length, N, 1)
+        attention = attention.permute(1, 2, 0)                      #(seq_len, N, 1) -> (N, 1, seq_len)
+        encoder_states = encoder_states.permute(1, 0, 2)            #(seq_len, N, hidden_size*2) -> (N, seq_len, hidden_size*2)
+        context_vector = torch.bmm(attention, encoder_states)       #(N, 1, seq_len) x (N, seq_len, hidden_size*2) -> (N, 1, hidden_size*2)
+        context_vector = context_vector.permute(1, 0, 2)            #(N, 1, hidden_size*2) -> (1, N, hidden_size*2)
+        
+        rnn_input = torch.cat((context_vector, embedding), dim=2)
 
 
 
-        outputs, (hidden, cell) = self.rnn(embedding, (hidden, cell))   #outputs: (1, N, hidden_size)
+        outputs, (hidden, cell) = self.rnn(rnn_input (hidden, cell))    #outputs: (1, N, hidden_size)
         predictions = self.fc(outputs)                                  #predictions: (1, N, vocab_length)
-        predictions = predictions.squeeze(0)                            #want (N, vocab_length) because ??????????????????????
+        predictions = predictions.squeeze(0)                            #want (N, vocab_length), so unsqueeze
         return predictions, hidden, cell
 
 class Seq2Seq(nn.Module):
@@ -136,11 +138,11 @@ class Seq2Seq(nn.Module):
         #so 1 output will be sized: (batch_size, target_vocab_size)
         #add additional outputs on dim=0
 
-        hidden, cell = self.encoder(source)
+        encoder_states, hidden, cell = self.encoder(source)
         x = target[0]   #x gets start token
 
         for word in range(1, target_len):
-            output, hidden, cell = self.decoder(x, hidden, cell)
+            output, hidden, cell = self.decoder(x, encoder_states, hidden, cell)
             outputs[word] = output
 
             #output: (N, english_vocab_size), argmax gives highest probability guess
@@ -163,7 +165,7 @@ output_size = len(english.vocab)
 encoder_embed_size = 300
 decoder_embed_size = 300
 hidden_size = 1024 
-num_layers = 4
+num_layers = 1      #CAN USE 4 LATER ON
 enc_dropout = 0.5
 dec_dropout = 0.5
 

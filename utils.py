@@ -1,7 +1,7 @@
 import torch
 from typing import List
 import sacrebleu
-from nmt_model import Hypothesis
+#from nmt_model import Hypothesis
 
 def save_checkpoint(state, filename="checkpoint.pth.tar"):
     print("<ea> saving checkpoint")
