@@ -9,8 +9,7 @@ import numpy as np                                              #loss plots
 import spacy                                                    #tokenizer
 import random
 from torch.utils.tensorboard import SummaryWriter  #prints to tensorboard
-from utils import save_checkpoint, load_checkpoint
-#from utils import translate_sentence, bleu, save_checkpoint, load_checkpoint
+from utils import translate_sentence, bleu, save_checkpoint, load_checkpoint
 
 #spacy_zh = spacy.load('zh_core_web_md')
 spacy_ge = spacy.load('de_core_news_md')
@@ -40,7 +39,6 @@ class Encoder(nn.Module):
         super(Encoder, self).__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
-
         self.dropout = nn.Dropout(p)
         self.embedding = nn.Embedding(input_size, embed_size)               #(input) input_size -> embed_size (output)
         #WITH attention version
@@ -58,8 +56,8 @@ class Encoder(nn.Module):
         #   unpacking the information, you get a batch_size of sentences
         #x: (seq_length, batch_size)
 
-        embedding = self.dropout(self.embedding(x))     #embedding: (seq_len, N, embed_size)
-        encoder_states, (hidden, cell) = self.rnn(embedding)   #outputs: (seq_len, N, hidden_size)
+        embedding = self.dropout(self.embedding(x))             #embedding: (seq_len, N, embed_size)
+        encoder_states, (hidden, cell) = self.rnn(embedding)    #outputs: (seq_len, N, hidden_size)
         hidden = self.fc_hidden(torch.cat((hidden[0:1], hidden[1:2]), dim=2))  #hidden[0:1] represents forward direction, [1:2] represents backwards
         #hidden: (2, batch_size, hidden_size) -> (batch_size, hidden_size * 2)
         cell = self.fc_cell(torch.cat((cell[0:1], cell[1:2]), dim=2))
@@ -114,7 +112,7 @@ class Decoder(nn.Module):
 
 
 
-        outputs, (hidden, cell) = self.rnn(rnn_input, (hidden, cell))    #outputs: (1, N, hidden_size)
+        outputs, (hidden, cell) = self.rnn(rnn_input, (hidden, cell))   #outputs: (1, N, hidden_size)
         predictions = self.fc(outputs)                                  #predictions: (1, N, vocab_length)
         predictions = predictions.squeeze(0)                            #want (N, vocab_length), so unsqueeze
         return predictions, hidden, cell
@@ -154,11 +152,11 @@ class Seq2Seq(nn.Module):
 #training hyperparameters
 num_epochs = 20
 learning_rate = 0.001
-batch_size = 64
+batch_size = 128
 
 #model hyperparameters
-load_model = False
-device = torch.device('cua' if torch.cuda.is_available() else 'cpu')
+load_model = True
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 input_size_encoder = len(german.vocab)
 input_size_decoder = len(english.vocab)
 output_size = len(english.vocab)
@@ -191,15 +189,9 @@ pad_idx = english.vocab.stoi['<pad>']
 criterion = nn.CrossEntropyLoss(ignore_index=pad_idx)   #if receives a pad index, don't compute anything
 
 if load_model:
-    load_checkpoint(torch.load('my_checkpoint.pth.ptar'), model, optimizer)
+    load_checkpoint(torch.load('my_checkpoint.pth.tar'), model, optimizer)
 
 sentence = ''
-
-
-
-print("FINISHED LOADING")
-import sys
-sys.exit()
 
 for epoch in range(num_epochs):
     print(f'Epoch [{epoch} / {num_epochs}]')
@@ -237,6 +229,5 @@ for epoch in range(num_epochs):
         writer.add_scalar('Training loss', loss, global_step=step)
         step += 1
 
-#score = bleu(test_data, model, german, english, device)
-#print(f'Bleu score {score*100:.2f}')
-print("DONE!!!!!!!!!!!!!!")
+score = bleu(test_data, model, german, english, device)
+print(f'Bleu score {score*100:.2f}')
