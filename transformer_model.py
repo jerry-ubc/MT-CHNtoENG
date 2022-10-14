@@ -109,7 +109,7 @@ num_encoder_layers = 3       #Attention is all you need uses 6?
 num_decoder_layers = 3
 dropout = 0.10              #seq2seq usually lower, can play around
 max_len = 100               #max sentence length? also used for positional embedding
-forward_expansion = 4       #SHOULD BE 2048? MAYBE? comment says use default value, search it up
+forward_expansion = 2048    #SHOULD BE 2048? MAYBE? comment says use default value, search it up
 src_pad_idx = english.vocab.stoi["<pad>"]
 
 #Tensorboard for plots
