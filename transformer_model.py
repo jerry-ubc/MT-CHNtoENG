@@ -24,7 +24,7 @@ english = Field(tokenize=tokenize_en, lower=True, init_token='<sos>', eos_token=
 train_data, dev_data, test_data = Multi30k.splits(exts=('.de', '.en'), fields=(german, english))
 
 german.build_vocab(train_data, max_size=10000, min_freq=2)
-german.build_vocab(train_data, max_size=10000, min_freq=2)
+english.build_vocab(train_data, max_size=10000, min_freq=2)
 
 class Transformer(nn.Module):
     def __init__(self, 
@@ -148,8 +148,9 @@ if load_model:
 
 #sentence = ''
 
+
 for epoch in range(num_epochs):
-    print(f"[Epoch <epoch> / {num_epochs}")
+    print(f"[Epoch <epoch> / {num_epochs}]")
     if save_model:
         checkpoint = {
             "state_dict": model.state_dict(),
