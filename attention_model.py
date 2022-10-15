@@ -9,7 +9,7 @@ import numpy as np                                              #loss plots
 import spacy                                                    #tokenizer
 import random
 from torch.utils.tensorboard import SummaryWriter  #prints to tensorboard
-from utils import translate_sentence, bleu, save_checkpoint, load_checkpoint
+from attention_utils import translate_sentence, bleu, save_checkpoint, load_checkpoint
 
 #spacy_zh = spacy.load('zh_core_web_md')
 spacy_ge = spacy.load('de_core_news_md')

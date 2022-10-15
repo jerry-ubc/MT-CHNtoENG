@@ -3,7 +3,7 @@ import torch
 import torch.optim as optim
 import torch.nn as nn
 import spacy    #vocabulary and tokenizer
-from utils import translate_sentence, bleu, save_checkpoint, load_checkpoint
+from transformer_utils import translate_sentence, bleu, save_checkpoint, load_checkpoint
 from torch.utils.tensorboard import SummaryWriter   #loss plots
 from torchtext.datasets import Multi30k     #German -> English dataset
 from torchtext.data import Field, BucketIterator    #data processing
