@@ -1,9 +1,9 @@
-from torchtext.datasets import data
+# from torchtext.datasets import data
 import torch
 import spacy
 from torchtext.data.metrics import bleu_score
 from torchtext.data import Dataset
-from torchtext.datasets import TranslationDataset
+# from torchtext.datasets import TranslationDataset
 import sentencepiece as spc
 import sys
 import os
