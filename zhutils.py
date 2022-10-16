@@ -2,6 +2,9 @@ from torchtext.datasets import data
 import torch
 import spacy
 from torchtext.data.metrics import bleu_score
+from torchtext.data import Dataset
+from torchtext.datasets import TranslationDataset
+import sentencepiece as spc
 import sys
 import os
 import io
@@ -72,70 +75,52 @@ def load_checkpoint(checkpoint, model, optimizer):
     model.load_state_dict(checkpoint["state_dict"])
     optimizer.load_state_dict(checkpoint["optimizer"])
 
+def chinese_tokenizer_load():
+    spc_zh = spc.SentencePieceProcessor()
+    spc_zh.Load('{}.model'.format('zh'))        #can't we just do spc_zh.Load('zh.model')
+    return spc_zh
+
+def english_tokenizer_load():
+    spc_en = spc.SentencePieceProcessor()
+    spc_en.Load('{}.model'.format('en'))
+    return spc_en
 
 
-class TranslationDataset(data.Dataset):
-    """Defines a dataset for machine translation."""
 
-    @staticmethod
-    def sort_key(ex):
-        return data.interleave_keys(len(ex.src), len(ex.trg))
+# class NCDataset(TranslationDataset):
 
-    def __init__(self, path, exts, fields, **kwargs):
-        """Create a TranslationDataset given paths and fields.
+#     """My own Dataset object using corpus from News Commentary v16"""
 
-        Arguments:
-            path: Common prefix of paths to the data files for both languages.
-            exts: A tuple containing the extension to path for each language.
-            fields: A tuple containing the fields that will be used for data
-                in each language.
-            Remaining keyword arguments: Passed to the constructor of
-                data.Dataset.
-        """
-        if not isinstance(fields[0], (tuple, list)):
-            fields = [('src', fields[0]), ('trg', fields[1])]
+#     urls = ['http://www.quest.dcs.shef.ac.uk/wmt16_files_mmt/training.tar.gz',
+#             'http://www.quest.dcs.shef.ac.uk/wmt16_files_mmt/validation.tar.gz',
+#             'http://www.quest.dcs.shef.ac.uk/'
+#             'wmt17_files_mmt/mmt_task1_test2016.tar.gz']
+#     name = 'ncv16'
+#     dirname = ''
 
-        src_path, trg_path = tuple(os.path.expanduser(path + x) for x in exts)
+#     @classmethod
+#     def splits(cls, exts, fields, root='.data',
+#                train='train', validation='val', test='test', **kwargs):
+#         """Create dataset objects for splits of the NCv16 dataset.
 
-        examples = []
-        with io.open(src_path, mode='r', encoding='utf-8') as src_file, \
-                io.open(trg_path, mode='r', encoding='utf-8') as trg_file:
-            for src_line, trg_line in zip(src_file, trg_file):
-                src_line, trg_line = src_line.strip(), trg_line.strip()
-                if src_line != '' and trg_line != '':
-                    examples.append(data.Example.fromlist(
-                        [src_line, trg_line], fields))
+#         Arguments:
+#             exts: A tuple containing the extension to path for each language.
+#             fields: A tuple containing the fields that will be used for data
+#                 in each language.
+#             root: Root dataset storage directory. Default is 'zhen_data'.
+#             train: The prefix of the train data. Default: 'train'.
+#             validation: The prefix of the validation data. Default: 'devset'.
+#             test: The prefix of the test data. Default: 'testset'.
+#             Remaining keyword arguments: Passed to the splits method of
+#                 Dataset.
+#         """
 
-        super(TranslationDataset, self).__init__(examples, fields, **kwargs)
+#         if 'path' not in kwargs:
+#             expected_folder = os.path.join(root, cls.name)
+#             path = expected_folder if os.path.exists(expected_folder) else None
+#         else:
+#             path = kwargs['path']
+#             del kwargs['path']
 
-    @classmethod
-    def splits(cls, exts, fields, path=None, root='.data',
-               train='train', validation='val', test='test', **kwargs):
-        """Create dataset objects for splits of a TranslationDataset.
-
-        Arguments:
-            exts: A tuple containing the extension to path for each language.
-            fields: A tuple containing the fields that will be used for data
-                in each language.
-            path (str): Common prefix of the splits' file paths, or None to use
-                the result of cls.download(root).
-            root: Root dataset storage directory. Default is '.data'.
-            train: The prefix of the train data. Default: 'train'.
-            validation: The prefix of the validation data. Default: 'val'.
-            test: The prefix of the test data. Default: 'test'.
-            Remaining keyword arguments: Passed to the splits method of
-                Dataset.
-        """
-        if path is None:
-            path = cls.download(root)
-
-        train_data = None if train is None else cls(
-            os.path.join(path, train), exts, fields, **kwargs)
-        val_data = None if validation is None else cls(
-            os.path.join(path, validation), exts, fields, **kwargs)
-        test_data = None if test is None else cls(
-            os.path.join(path, test), exts, fields, **kwargs)
-        return tuple(d for d in (train_data, val_data, test_data)
-                     if d is not None)
-
-
+#         return super(NCDataset, cls).splits(
+#             exts, fields, path, root, train, validation, test, **kwargs)

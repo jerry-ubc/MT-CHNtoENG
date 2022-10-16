@@ -5,22 +5,29 @@ import spacy    #vocabulary and tokenizer
 import spacy
 from transformer_utils import translate_sentence, bleu, save_checkpoint, load_checkpoint
 from torch.utils.tensorboard import SummaryWriter   #loss plots
-from torchtext.datasets import Multi30k, NCDataset
+from torchtext.datasets import Multi30k, TranslationDataset
 from torchtext.data import Field, BucketIterator
 from spacy.lang.zh import Chinese
+#from zhutils import NCDataset
 
-spacy_zh = spacy.load('zh_core_web_trf')        #MAYBE CAN COMMENT OUT!!!!!
-spacy_en = spacy.load('en_core_web_trf')
+# spacy_zh = spacy.load('zh_core_web_trf')        #MAYBE CAN COMMENT OUT!!!!!
+# spacy_en = spacy.load('en_core_web_trf')
+
+spacy_zh = spacy.load('zh_core_web_sm')        #MAYBE CAN COMMENT OUT!!!!!
+spacy_en = spacy.load('en_core_web_sm')
 
 
-
+#------------------------use these later
 # Jieba
-cfg = {"segmenter": "jieba"}
-nlp = Chinese.from_config({"nlp": {"tokenizer": cfg}})
+# cfg = {"segmenter": "jieba"}
+# nlp = Chinese.from_config({"nlp": {"tokenizer": cfg}})
 
-#tokenizers
+# #tokenizers
+# def tokenize_zh(text):
+#     return nlp(text)
+#-----------------------------------------------
 def tokenize_zh(text):
-    return nlp(text)
+    return [tok.text for tok in spacy_zh.tokenizer(text)]
 def tokenize_en(text):
     return [tok.text for tok in spacy_en.tokenizer(text)]
 
@@ -32,17 +39,20 @@ english = Field(tokenize=tokenize_en, lower=True, init_token='<sos>', eos_token=
 #train_data, dev_data, test_data = Multi30k.splits(exts=('.zh', '.en'), fields=(chinese, english))
 #RUN corpus_process.py FIRST!
 #train_data = open(zhen_data/)
-train_data, dev_data, test_data = NCDataset(exts = ('.zh', '.en'), fields = (chinese, english))
+train_data, dev_data, test_data = Multi30k.splits(exts = ('.zh', '.en'), fields = (chinese, english))
 
-chinese.build_vocab(train_data, max_size=10000, min_freq=2) #can try 8000, 16000, or 32000
-english.build_vocab(train_data, max_size=10000, min_freq=2)
-
-
-
-
-
+print("done")
+import sys
+sys.exit()
+# chinese.build_vocab(train_data, max_size=10000, min_freq=2) #can try 8000, 16000, or 32000
+# english.build_vocab(train_data, max_size=10000, min_freq=2)
 
 
+
+
+
+
+#MAKE YOUR OWN DATASET CLASS THAT EXTENDS DATASET AND LEARN FROM CHINESENMT
 
 
 def test():

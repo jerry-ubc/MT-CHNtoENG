@@ -26,6 +26,7 @@ train_data, dev_data, test_data = Multi30k.splits(exts=('.de', '.en'), fields=(g
 german.build_vocab(train_data, max_size=10000, min_freq=2)
 english.build_vocab(train_data, max_size=10000, min_freq=2)
 
+
 class Transformer(nn.Module):
     def __init__(self, 
                  embed_size, 
