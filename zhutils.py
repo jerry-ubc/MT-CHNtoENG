@@ -1,9 +1,9 @@
-from torchtext.datasets import data
+# from torchtext.datasets import data
 import torch
 import spacy
 from torchtext.data.metrics import bleu_score
 from torchtext.data import Dataset
-from torchtext.datasets import TranslationDataset
+# from torchtext.datasets import TranslationDataset
 import sentencepiece as spc
 import sys
 import os
@@ -12,7 +12,7 @@ import io
 
 def translate_sentence(model, sentence, german, english, device, max_length=50):
     # Load german tokenizer
-    spacy_ger = spacy.load("de_core_news_md")
+    spacy_ger = spacy.load("zh_core_web_sm")
 
     # Create tokens using spacy and everything in lower case (which is what our vocab is)
     if type(sentence) == str:

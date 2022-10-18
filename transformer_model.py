@@ -85,7 +85,7 @@ class Transformer(nn.Module):
         out = self.transformer(
             embed_src,
             embed_tgt,
-            embed_key_padding_mask = src_padding_mask,
+            src_key_padding_mask = src_padding_mask,
             tgt_mask = tgt_mask
         )
         out = self.fc_out(out)                  # WHAT DOES THIS DO??????????/
@@ -94,7 +94,7 @@ class Transformer(nn.Module):
 #Training setup
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 load_model = False
-save_model = True
+save_model = False
 
 #Training hyperparameters
 num_epochs = 5
@@ -151,7 +151,7 @@ if load_model:
 
 
 for epoch in range(num_epochs):
-    print(f"[Epoch <epoch> / {num_epochs}]")
+    print(f"[Epoch {epoch} / {num_epochs}]")
     if save_model:
         checkpoint = {
             "state_dict": model.state_dict(),
@@ -182,6 +182,8 @@ for epoch in range(num_epochs):
         optimizer.zero_grad()
 
         loss = criterion(output, target)
+        if batch_index % 5 == 0:
+            print("Loss: {}".format(loss))
         loss.backward()
         nn.utils.clip_grad_norm_(model.parameters(), max_norm = 1)      #prevents exploding gradient
         optimizer.step()

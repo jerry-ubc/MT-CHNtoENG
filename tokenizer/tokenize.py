@@ -22,6 +22,10 @@ def train(input_file, vocab_size, model_name, model_type, character_coverage):
 
 
 def run():
+    # import sys
+    # test()
+    # sys.exit()
+
     en_input = '.data/ncv16/train.en'
     en_vocab_size = 32000
     en_model_name = 'en'
@@ -41,10 +45,10 @@ def test():
     sp = spm.SentencePieceProcessor()
     text = "美国总统特朗普今日抵达夏威夷。"
 
-    sp.Load("./chn.model")
+    sp.Load("./zh.model")
     print(sp.EncodeAsPieces(text))
     print(sp.EncodeAsIds(text))
-    a = [12907, 277, 7419, 7318, 18384, 28724]
+    a = [23442, 7407, 7505, 19767, 28729]
     print(sp.decode_ids(a))
 
 
